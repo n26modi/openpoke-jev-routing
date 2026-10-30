@@ -404,7 +404,7 @@
     <div class="byline">
       <span>Nishant Modi</span>
       <span>·</span>
-      <span><a href="https://github.com/n26modi/openpoke">github.com/n26modi/openpoke</a></span>
+      <span><a href="https://github.com/n26modi/openpoke-jev-routing">github.com/n26modi/openpoke-jev-routing</a></span>
     </div>
   </div>
 
@@ -412,9 +412,9 @@
 
     <h2>What the Interaction Agent sees on day fourteen.</h2>
 
-    <p>OpenPoke is a locally-runnable, open-source implementation of <a href="https://poke.com">Poke</a> — the iMessage-integrated assistant from Interaction Co. Its architecture is deliberately simple: a single Interaction Agent orchestrates work by delegating to persistent, specialized Execution Agents. "Email to Alice," "Vercel Job Offer," "Tokyo Restaurant Search" — each one owns a specific thread and sticks around indefinitely.</p>
+    <p>OpenPoke is a locally-runnable, open-source implementation of <a href="https://poke.com">Poke</a> — the iMessage-integrated assistant from Interaction Co. Its architecture is deliberately simple: a single Interaction Agent orchestrates work by delegating to persistent, specialized Execution Agents. "Email to Alice," "Vercel Job Offer," "Tokyo Restaurant Search." Each one owns a specific thread and sticks around indefinitely.</p>
 
-    <p>The system works beautifully on day one. By day fourteen, it does not.</p>
+    <p>The system works beautifully on day one, but by day fourteen, it does not.</p>
 
     <p>Every message you send takes a trip through the same code path. The Interaction Agent reads the conversation history, loads <em>every</em> existing execution agent, and passes that full roster into Claude Sonnet's context before deciding what to do. On message one, that's three agents. On message 847, it's three hundred.</p>
 
@@ -448,7 +448,7 @@
       <li><strong>Token cost scales linearly.</strong> At 500 agents, you're paying for 500 XML tags on every turn. A single complex OpenPoke request already triggers 10 to 15 LLM calls across the Interaction Agent and its spawned Execution Agents — the roster bloat compounds across all of them.</li>
       <li><strong>Reasoning noise.</strong> LLMs do tool selection well when the right option is visible in a small set. Give them 500 lookalike names and recall drops — not catastrophically, but measurably. The baseline run of OpenPoke's current behaviour clocks in at <strong>69.2%</strong> accuracy on a 13-case benchmark.</li>
       <li><strong>Duplicate spawns.</strong> With a noisy roster, the IA struggles to find existing agents and starts creating new ones. "Email to Alice" alongside "Alice Chen email" alongside "Follow-up with Alice." The bloat compounds the bloat.</li>
-      <li><strong>Chat still pays the cost.</strong> When you message "hey, morning," the IA still receives the full roster — a reply that could cost nothing instead costs real tokens.</li>
+      <li><strong>Chat still pays the cost.</strong> When you message "hey, morning," the Interaction Agent still receives the full roster, so a reply that could cost nothing instead costs real tokens.</li>
     </ul>
 
     <p>The data pipeline into the design is the problem, not the design itself.</p>
@@ -458,7 +458,7 @@
 
     <p>The OpenPoke blog post that introduced this problem also proposed four potential fixes. Each one has an easy failure case.</p>
 
-    <p><strong>Semantic search.</strong> Embed the agent descriptions, embed the query, retrieve top-K. This gets you a lot, but only if you have descriptions, and only if a top-K that solves most queries doesn't lose the handful that need deeper reasoning. Pure vector retrieval also has no notion of "I'm just chatting."</p>
+    <p><strong>Semantic search.</strong> Embed the agent descriptions, embed the query, retrieve top-K. The problem is that K is a one-size-fits-all cutoff. On an ambiguous query you surface five weak matches when zero would be right. On a specific query you surface five when one is enough. On a stale-agent query the right answer sits at rank seven, and you lose it.</p>
 
     <p><strong>Archiving dormant agents.</strong> Hide agents that haven't been touched in X days. Simple, but fights the design philosophy of OpenPoke. Archive aggressively and you lose the "Tokyo trip from three months ago" use case that makes the system feel smart.</p>
 
@@ -492,7 +492,9 @@
 
     <h2>Five stages per user turn.</h2>
 
-    <p>Every user message walks through four stages in sequence, plus a fifth that only fires on new-agent creation. The whole System 1 layer adds roughly 300ms and $0.0001 per turn, about 1% of the LLM call cost.</p>
+    <p>Every user message walks through four stages in sequence, plus a fifth that only fires on new-agent creation. The whole System 1 layer adds roughly 300ms and $0.0001 per turn, about 1% of the LLM call cost. The payoff is worth it: we bound the Interaction Agent's input from 500 agent <em>names</em> to about ten <em>enriched entries</em>, which is what drives the big retrieval accuracy gains.</p>
+
+    <p>Baseline OpenPoke stores agents as names only. This fork generates a one-line description for every agent via Haiku on first spawn, cached on the record forever. Without them, there's nothing for retrieval and rerank to match against.</p>
 
     <div class="pipeline">
       <div class="stage">
