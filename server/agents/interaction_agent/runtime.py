@@ -1,5 +1,6 @@
 """Interaction Agent Runtime - handles LLM calls for user and agent turns."""
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
@@ -8,6 +9,7 @@ from .agent import build_system_prompt, prepare_message_with_history
 from .tools import ToolResult, get_tool_schemas, handle_tool_call
 from ...config import get_settings
 from ...services.conversation import get_conversation_log, get_working_memory_log
+from ...services.retrieval import route_query
 from ...openrouter_client import request_chat_completion
 from ...logging_config import logger
 
@@ -69,9 +71,16 @@ class InteractionAgentRuntime:
             transcript_before = self._load_conversation_transcript()
             self.conversation_log.record_user_message(user_message)
 
+            route = await asyncio.to_thread(route_query, user_message, transcript_before)
+            logger.info("Router decision", extra=route.to_log_dict())
+
             system_prompt = build_system_prompt()
             messages = prepare_message_with_history(
-                user_message, transcript_before, message_type="user"
+                user_message,
+                transcript_before,
+                message_type="user",
+                route=route,
+                query_for_retrieval=user_message,
             )
 
             logger.info("Processing user message through interaction agent")

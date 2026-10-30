@@ -61,6 +61,19 @@ class Settings(BaseModel):
     openrouter_api_key: Optional[str] = Field(default=os.getenv("OPENROUTER_API_KEY"))
     composio_gmail_auth_config_id: Optional[str] = Field(default=os.getenv("COMPOSIO_GMAIL_AUTH_CONFIG_ID"))
     composio_api_key: Optional[str] = Field(default=os.getenv("COMPOSIO_API_KEY"))
+    typesafe_api_key: Optional[str] = Field(default=os.getenv("TYPESAFE_API_KEY"))
+    openai_api_key: Optional[str] = Field(default=os.getenv("OPENAI_API_KEY"))
+
+    # Retrieval pipeline
+    jev_model: str = Field(default="jev-latest")
+    description_generator_model: str = Field(default="anthropic/claude-haiku-4-5")
+    embedding_model: str = Field(default="text-embedding-3-small")
+    hot_cache_size: int = Field(default=_env_int("OPENPOKE_HOT_CACHE_SIZE", 5))
+    retrieval_recall_k: int = Field(default=_env_int("OPENPOKE_RECALL_K", 20))
+    retrieval_precision_k: int = Field(default=_env_int("OPENPOKE_PRECISION_K", 8))
+    rerank_threshold: float = Field(default=0.5)
+    spawn_duplicate_threshold: float = Field(default=0.75)
+    max_visible_agents: int = Field(default=_env_int("OPENPOKE_MAX_VISIBLE_AGENTS", 10))
 
     # HTTP behaviour
     cors_allow_origins_raw: str = Field(default=os.getenv("OPENPOKE_CORS_ALLOW_ORIGINS", "*"))

@@ -5,9 +5,15 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from ...config import get_settings
 from ...logging_config import logger
 from ...services.conversation import get_conversation_log
 from ...services.execution import get_agent_roster, get_execution_agent_logs
+from ...services.retrieval import (
+    generate_description,
+    retrieve_and_rerank,
+    verify_spawn,
+)
 from ..execution_agent.batch_manager import ExecutionBatchManager
 
 
@@ -117,7 +123,37 @@ def send_message_to_agent(agent_name: str, instructions: str) -> ToolResult:
     is_new = agent_name not in existing_agents
 
     if is_new:
-        roster.add_agent(agent_name)
+        settings = get_settings()
+        hot = roster.get_hot_cache(settings.hot_cache_size)
+        try:
+            semantic = [r.record for r in retrieve_and_rerank(
+                instructions, precision_k=settings.hot_cache_size
+            )]
+        except Exception as exc:
+            logger.warning(f"Spawn-time retrieve failed: {exc}")
+            semantic = []
+
+        seen = set()
+        candidates = []
+        for rec in [*hot, *semantic]:
+            if rec.name == agent_name or rec.name in seen:
+                continue
+            seen.add(rec.name)
+            candidates.append(rec)
+
+        decision = verify_spawn(agent_name, instructions, candidates)
+        if not decision.allow_spawn and decision.redirect_to:
+            logger.info(
+                f"Spawn blocked: '{agent_name}' redirected to '{decision.redirect_to}' "
+                f"(score={decision.best_match_score:.2f})"
+            )
+            agent_name = decision.redirect_to
+            is_new = False
+        else:
+            description = generate_description(agent_name, instructions)
+            roster.add_agent(agent_name, description=description)
+
+    roster.record_use(agent_name)
 
     get_execution_agent_logs().record_request(agent_name, instructions)
 

@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixing OpenPoke's execution agent overload — Nishant Modi</title>
+  <meta name="description" content="How a System 1 / System 2 pipeline using TypeSafe's Jev cuts OpenPoke's visible agent roster from 25 to 5 per turn while raising routing accuracy from 69% to 92%.">
+
+  <style>
+    /* ------------------------------------------------------------------
+       Neue Montreal — self-hosted from GM's framer CDN assets, 6 weights
+       ------------------------------------------------------------------ */
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-regular.woff2") format("woff2");
+      font-weight: 400; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-italic.woff2") format("woff2");
+      font-weight: 400; font-style: italic; font-display: swap;
+    }
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-medium.woff2") format("woff2");
+      font-weight: 500; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-med-italic.woff2") format("woff2");
+      font-weight: 500; font-style: italic; font-display: swap;
+    }
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-bold.woff2") format("woff2");
+      font-weight: 700; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: "Neue Montreal";
+      src: url("fonts/neue-montreal-bold-italic.woff2") format("woff2");
+      font-weight: 700; font-style: italic; font-display: swap;
+    }
+
+    /* ------------------------------------------------------------------
+       Tokens pulled from generalmagic.inc blog CSS
+       ------------------------------------------------------------------ */
+    :root {
+      --text:        #1f1610;
+      --muted:       #75757B;
+      --faint:       #A9B2BB;
+      --rule:        #DDE2E7;
+      --accent:      #FF4B33;
+      --accent-soft: #FFF2E3;
+      --bg:          #FFF6F4;
+      --card:        #FFFFFF;
+      --code-bg:     #1f1610;
+      --code-fg:     #FFF6F4;
+      --measure:     720px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Neue Montreal", -apple-system, "SF Pro Text", sans-serif;
+      font-feature-settings: "cv03", "cv04", "cv09", "cv11", "blwf";
+      font-size: 20px;
+      line-height: 1.75;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    ::selection { background: var(--accent); color: #fff; }
+
+    .wrap {
+      max-width: var(--measure);
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    header.site {
+      padding: 32px 32px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 15px;
+      color: var(--muted);
+      max-width: calc(var(--measure) + 64px);
+      margin: 0 auto;
+    }
+    header.site a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    header.site .meta {
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    .hero { padding: 96px 0 48px; }
+
+    .hero h1 {
+      font-size: 58px;
+      line-height: 1.08;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      text-wrap: balance;
+      margin: 0 0 32px;
+      color: var(--text);
+    }
+
+    .hero .dek {
+      font-size: 24px;
+      line-height: 1.45;
+      font-weight: 400;
+      color: var(--text);
+      opacity: 0.72;
+      max-width: 640px;
+      margin: 0 0 48px;
+    }
+
+    .hero .byline {
+      display: flex;
+      gap: 20px;
+      font-size: 15px;
+      color: var(--muted);
+      padding-top: 24px;
+      border-top: 1px solid var(--rule);
+    }
+    .hero .byline a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .hero .byline a:hover { color: var(--accent); }
+
+    main .wrap > *:not(h2):not(figure):not(.aside):not(.pipeline) {
+      max-width: 680px;
+    }
+
+    h2 {
+      font-size: 30px;
+      line-height: 1.25;
+      font-weight: 500;
+      letter-spacing: -0.015em;
+      text-wrap: balance;
+      margin: 80px 0 28px;
+      color: var(--text);
+    }
+
+    h3 {
+      font-size: 22px;
+      line-height: 1.3;
+      font-weight: 500;
+      letter-spacing: -0.012em;
+      margin: 48px 0 16px;
+      color: var(--text);
+    }
+
+    p { margin: 0 0 22px; }
+    strong { font-weight: 500; color: var(--text); }
+    em { font-style: italic; }
+
+    a {
+      color: var(--text);
+      text-decoration: underline;
+      text-decoration-color: var(--accent);
+      text-decoration-thickness: 1.5px;
+      text-underline-offset: 4px;
+      transition: color 120ms ease;
+    }
+    a:hover { color: var(--accent); }
+
+    ul, ol {
+      margin: 0 0 28px;
+      padding-left: 24px;
+    }
+    li {
+      margin-bottom: 10px;
+      padding-left: 4px;
+    }
+    li::marker { color: var(--faint); }
+
+    figure {
+      margin: 48px -32px;
+      max-width: calc(var(--measure) + 64px);
+    }
+    @media (min-width: 760px) {
+      figure { margin: 56px auto; }
+    }
+    figure img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 4px;
+    }
+    figcaption {
+      font-size: 15px;
+      color: var(--muted);
+      margin-top: 14px;
+      line-height: 1.5;
+      max-width: 640px;
+    }
+
+    .aside {
+      border-left: 2px solid var(--text);
+      padding: 2px 0 2px 24px;
+      margin: 36px 0;
+      font-size: 22px;
+      line-height: 1.4;
+      font-weight: 500;
+      color: var(--text);
+      max-width: 640px;
+      letter-spacing: -0.01em;
+    }
+
+    .note {
+      background: var(--accent-soft);
+      border-radius: 6px;
+      padding: 22px 26px;
+      margin: 36px 0;
+      font-size: 17px;
+      line-height: 1.6;
+      color: var(--text);
+      max-width: 640px;
+    }
+    .note strong { font-weight: 500; }
+
+    code {
+      font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+      font-size: 0.86em;
+      background: rgba(31, 22, 16, 0.06);
+      color: var(--text);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-feature-settings: normal;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 24px 28px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 28px 0;
+      max-width: calc(var(--measure) + 32px) !important;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      font-size: inherit;
+    }
+
+    /* ------------------------------------------------------------------
+       Pipeline diagram — pure HTML/CSS, inherits typography
+       ------------------------------------------------------------------ */
+    .pipeline {
+      margin: 48px auto 56px;
+      max-width: 760px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pipeline .stage {
+      border: 1px solid var(--rule);
+      background: var(--card);
+      border-radius: 8px;
+      padding: 18px 22px;
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 18px;
+      align-items: baseline;
+    }
+    .pipeline .stage.accent {
+      border-color: var(--accent);
+      border-width: 1px;
+    }
+    .pipeline .stage.optional {
+      border-style: dashed;
+    }
+    .pipeline .num {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .pipeline .name {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .pipeline .name span {
+      display: block;
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 2px;
+      letter-spacing: 0;
+    }
+    .pipeline .cost {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .pipeline .arrow {
+      align-self: center;
+      height: 20px;
+      width: 1px;
+      background: var(--rule);
+      margin: 2px 0 2px 22px;
+    }
+    .pipeline .branch {
+      font-size: 12px;
+      font-style: italic;
+      color: var(--muted);
+      margin: 2px 0 2px 60px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: 32px 0;
+      max-width: calc(var(--measure) + 32px) !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 16px;
+    }
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--rule);
+      line-height: 1.4;
+    }
+    th {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    td.winner { color: var(--accent); font-weight: 500; }
+
+    footer.site {
+      border-top: 1px solid var(--rule);
+      padding: 64px 32px 80px;
+      font-size: 15px;
+      color: var(--muted);
+      max-width: calc(var(--measure) + 64px);
+      margin: 96px auto 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    footer.site a {
+      color: var(--text);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    footer.site a:hover { color: var(--accent); }
+
+    @media (max-width: 760px) {
+      body { font-size: 18px; line-height: 1.7; }
+      .wrap { padding: 0 24px; }
+      header.site, footer.site { padding-left: 24px; padding-right: 24px; }
+      .hero { padding: 56px 0 32px; }
+      .hero h1 { font-size: 40px; }
+      .hero .dek { font-size: 20px; margin-bottom: 32px; }
+      h2 { font-size: 26px; margin: 56px 0 20px; }
+      h3 { font-size: 19px; margin: 36px 0 12px; }
+      figure { margin: 36px -24px; border-radius: 0; }
+      figure img { border-radius: 0; }
+      .pipeline .stage {
+        grid-template-columns: 32px 1fr;
+      }
+      .pipeline .cost { grid-column: 2; margin-top: 4px; text-align: left; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="site">
+  <a href="/">Nishant Modi</a>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Fixing OpenPoke's execution agent overload.</h1>
+    <p class="dek">
+      After two weeks of use, OpenPoke's Interaction Agent sees every one of its hundreds of execution agents on every single message. Here's how a System&nbsp;1 / System&nbsp;2 pipeline using TypeSafe's Jev cuts that to five, while lifting routing accuracy from 69% to 92%.
+    </p>
+    <div class="byline">
+      <span>Nishant Modi</span>
+      <span>·</span>
+      <span><a href="https://github.com/n26modi/openpoke">github.com/n26modi/openpoke</a></span>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <h2>What the Interaction Agent sees on day fourteen.</h2>
+
+    <p>OpenPoke is a locally-runnable, open-source implementation of <a href="https://poke.com">Poke</a> — the iMessage-integrated assistant from Interaction Co. Its architecture is deliberately simple: a single Interaction Agent orchestrates work by delegating to persistent, specialized Execution Agents. "Email to Alice," "Vercel Job Offer," "Tokyo Restaurant Search" — each one owns a specific thread and sticks around indefinitely.</p>
+
+    <p>The system works beautifully on day one. By day fourteen, it does not.</p>
+
+    <p>Every message you send takes a trip through the same code path. The Interaction Agent reads the conversation history, loads <em>every</em> existing execution agent, and passes that full roster into Claude Sonnet's context before deciding what to do. On message one, that's three agents. On message 847, it's three hundred.</p>
+
+    <div class="aside">
+      This is what Claude Sonnet reads before every single reply.
+    </div>
+
+
+    <h2>One function, fourteen lines.</h2>
+
+    <p>The OpenPoke team called this "Execution Agent Overload" in their design notes and flagged it as the biggest unsolved gap. It lives entirely in one function in <code>server/agents/interaction_agent/agent.py</code>:</p>
+
+    <pre><code>def _render_active_agents() -> str:
+    roster = get_agent_roster()
+    roster.load()
+    agents = roster.get_agents()
+
+    if not agents:
+        return "None"
+
+    rendered: List[str] = []
+    for agent_name in agents:
+        name = escape(agent_name or "agent", quote=True)
+        rendered.append(f'&lt;agent name="{name}" /&gt;')
+
+    return "\n".join(rendered)</code></pre>
+
+    <p>No filtering, no ranking, no descriptions. The LLM gets handed every agent that ever existed, named only, and is expected to pick the right one every turn. Four things go wrong at once.</p>
+
+    <ul>
+      <li><strong>Token cost scales linearly.</strong> At 500 agents, you're paying for 500 XML tags on every turn. A single complex OpenPoke request already triggers 10 to 15 LLM calls across the Interaction Agent and its spawned Execution Agents — the roster bloat compounds across all of them.</li>
+      <li><strong>Reasoning noise.</strong> LLMs do tool selection well when the right option is visible in a small set. Give them 500 lookalike names and recall drops — not catastrophically, but measurably. The baseline run of OpenPoke's current behaviour clocks in at <strong>69.2%</strong> accuracy on a 13-case benchmark.</li>
+      <li><strong>Duplicate spawns.</strong> With a noisy roster, the IA struggles to find existing agents and starts creating new ones. "Email to Alice" alongside "Alice Chen email" alongside "Follow-up with Alice." The bloat compounds the bloat.</li>
+      <li><strong>Chat still pays the cost.</strong> When you message "hey, morning," the IA still receives the full roster — a reply that could cost nothing instead costs real tokens.</li>
+    </ul>
+
+    <p>The data pipeline into the design is the problem, not the design itself.</p>
+
+
+    <h2>Four shapes a fix could take.</h2>
+
+    <p>The OpenPoke blog post that introduced this problem also proposed four potential fixes. Each one has an easy failure case.</p>
+
+    <p><strong>Semantic search.</strong> Embed the agent descriptions, embed the query, retrieve top-K. This gets you a lot, but only if you have descriptions, and only if a top-K that solves most queries doesn't lose the handful that need deeper reasoning. Pure vector retrieval also has no notion of "I'm just chatting."</p>
+
+    <p><strong>Archiving dormant agents.</strong> Hide agents that haven't been touched in X days. Simple, but fights the design philosophy of OpenPoke. Archive aggressively and you lose the "Tokyo trip from three months ago" use case that makes the system feel smart.</p>
+
+    <p><strong>Clustering.</strong> Group related agents into topic buckets. The IA sees cluster labels and drills in as needed. Elegant on paper, but clusters are static while user queries are dynamic, and anything that creates a new concept outside existing clusters becomes homeless.</p>
+
+    <p><strong>Hot cache.</strong> Keep the N most-recently-used agents always visible. Dirt simple, works for follow-ups, fails for anything older than a week. Later evaluation confirmed this is <em>worse than doing nothing</em> on this benchmark — more on that below.</p>
+
+    <p>A working solution can't just pick one. Mine layers them, with a cheap but effective System 1 judgement call in between.</p>
+
+
+    <h2>System 1 and System 2.</h2>
+
+    <p>Daniel Kahneman divided thinking into two modes. System 1 is fast, intuitive, pattern-based. System 2 is slow, deliberate, reasoning-based. They both have their jobs and are both necessary, but they fail when you use the wrong one for the task at hand.</p>
+
+    <p>Modern agentic pipelines treat LLMs like they're the only system available. Every decision, small or large, trivial or complex, gets handed to the same expensive, slow, deliberate reasoner. For routing between agents, which is pattern-matching work, this is overkill. The latency is wasted, the cost is wasted. Accuracy suffers too, because the LLM gets dragged down by noise it shouldn't have had to see.</p>
+
+    <p>In September 2026, TypeSafe AI released <strong>Jev</strong>, a model built for the System 1 job. You give it a state and a set of typed questions, and it returns calibrated decisions in 70-500ms at $0.042 per million input tokens. Instead of writing prose or doing open-ended reasoning, it classifies, ranks, scores, and verifies with real probabilities you can threshold against.</p>
+
+    <div class="aside">
+      Routing, reranking, verification: these are classification problems in disguise.
+    </div>
+
+    <p>General Magic made this argument themselves in their <a href="https://generalmagic.inc/blog/insurance-specific-ai">insurance-specific-ai post</a>, proposing three places Jev could slot into their document-retrieval pipeline: question routing, relevance reranking, and answer validation. The architectural insight generalizes — if you can frame a stage as "given this state, pick, rank, or verify," you probably don't need an LLM for it.</p>
+
+    <div class="note">
+      <strong>What Jev is.</strong> A classification model. Three question types: Choice (pick one of N labels), Score (rate against ordered levels), Noul (yes/no with calibrated probability). State is a single string. Batching many questions into one request is 12× cheaper than issuing them separately, so every stage in this pipeline bundles as many questions as it can per call.
+    </div>
+
+    <p>The pipeline that follows is the System 1 / System 2 split applied to OpenPoke's routing problem. Embeddings for cheap recall. Jev for fast precision. Claude Sonnet only for the one call that actually requires reasoning.</p>
+
+
+    <h2>Five stages per user turn.</h2>
+
+    <p>Every user message walks through four stages in sequence, plus a fifth that only fires on new-agent creation. The whole System 1 layer adds roughly 300ms and $0.0001 per turn, about 1% of the LLM call cost.</p>
+
+    <div class="pipeline">
+      <div class="stage">
+        <div class="num">01</div>
+        <div class="name">Router <span>intent + domain · 1 batched Jev call (2 Choice qs)</span></div>
+        <div class="cost">~175ms · $0.00001</div>
+      </div>
+      <div class="arrow"></div>
+      <div class="stage">
+        <div class="num">02</div>
+        <div class="name">Semantic recall + Jev rerank <span>OpenAI embed → top-20 cosine → Jev rerank (20 Noul qs)</span></div>
+        <div class="cost">~500ms · $0.0001</div>
+      </div>
+      <div class="arrow"></div>
+      <div class="stage">
+        <div class="num">03</div>
+        <div class="name">Filtered roster <span>hot cache ∪ reranked, bounded to 10 — pure code</span></div>
+        <div class="cost">&lt;1ms · free</div>
+      </div>
+      <div class="arrow"></div>
+      <div class="stage accent">
+        <div class="num">04</div>
+        <div class="name">Interaction Agent <span>Claude Sonnet 4 — the one deliberate call per turn</span></div>
+        <div class="cost">~1-2s · $0.01</div>
+      </div>
+      <div class="branch">↓ only if the IA tries to spawn a new agent</div>
+      <div class="stage optional">
+        <div class="num">05</div>
+        <div class="name">Spawn verifier <span>Jev Noul over candidates, redirects duplicates</span></div>
+        <div class="cost">~150ms · $0.00003</div>
+      </div>
+    </div>
+
+    <h3>Stage 1 — The router</h3>
+    <p>The query plus recent conversation history goes into a single Jev call that batches two Choice questions. <code>intent</code> is one of <code>follow_up</code>, <code>new_task</code>, or <code>chat</code>. <code>domain</code> is one of <code>email</code>, <code>scheduling</code>, <code>research</code>, <code>draft</code>, or <code>other</code>. The returned decision gates everything downstream. A <code>chat</code> intent means the Interaction Agent gets an empty roster — small talk doesn't need agents. Anything else proceeds.</p>
+
+    <h3>Stage 2 — Semantic recall, then Jev rerank</h3>
+    <p>Two sub-stages. First the query gets embedded via OpenAI's <code>text-embedding-3-small</code> (1536-dim), and cosine similarity is run against cached per-agent embeddings. Top 20 candidates come back. Then one batched Jev call fires 20 Noul questions in parallel — <em>is agent at index N relevant to this query?</em> Each Noul returns a calibrated probability. Candidates below 0.5 get dropped, the rest are sorted and trimmed to the top 8.</p>
+
+    <h3>Stage 3 — The filtered roster</h3>
+    <p>Pure code, no API calls. Takes the last-5-used agents (the hot cache) and the top-8 reranked matches, merges them, dedupes by name, and trims to 10. Each one gets rendered with its description — not just a name — because descriptions are what makes selection downstream work well.</p>
+
+    <h3>Stage 4 — The Interaction Agent</h3>
+    <p>The unchanged OpenPoke Interaction Agent, with one difference: instead of seeing 500 raw agent names, it sees 10 filtered entries with descriptions. The LLM call that happens here is the one everything upstream was setting up. All the Jev calls and embeddings exist to make this one Claude Sonnet call successful.</p>
+
+    <h3>Stage 5 — The spawn verifier</h3>
+    <p>Only fires when the IA decides to create a new agent. Before anything is persisted, one Jev call batches Noul questions over the hot cache plus top semantic matches — <em>would spawning this new agent duplicate the responsibilities of this existing one?</em> If the best match crosses 0.75 confidence, we redirect the task to the existing agent instead of creating a duplicate. This is the piece that attacks roster bloat at the source, rather than filtering around it after it's already happened.</p>
+
+
+    <h2>Eval and benchmark.</h2>
+
+    <p>I built a 13-case benchmark to validate the design and measure how much each stage pulls weight.</p>
+
+    <p><strong>The cases</strong> span six categories, each stressing a different part of the pipeline: <em>clean follow-ups</em> (keyword-obvious), <em>semantic follow-ups</em> (weak keyword overlap, needs real embeddings), <em>disambiguation</em> (multiple valid-looking matches), <em>stale</em> (a dormant-but-correct agent that recency misses), <em>spawn-only</em> (nothing in the roster should match), and <em>chat-only</em> (small talk — no retrieval needed at all).</p>
+
+    <p><strong>Three configurations are compared:</strong> the current OpenPoke baseline (full roster rendered name-only, no filtering), hot-cache-only (just the last five used agents, no retrieval), and the full System 1 / System 2 hybrid (router + semantic recall + Jev rerank + verifier).</p>
+
+    <p><strong>Scoring is deterministic.</strong> For each case I build the exact <code>&lt;active_agents&gt;</code> block the Interaction Agent would see, parse the agent names out, then apply one of three pass/fail rules:</p>
+
+    <ol>
+      <li><strong>Pick cases</strong> — pass if the expected agent name appears in the shown set.</li>
+      <li><strong>Spawn cases</strong> — pass if the shown set is small (≤10 agents) or empty. The pipeline shouldn't force an off-topic match when the user is starting net-new work.</li>
+      <li><strong>Chat cases</strong> — pass if the router flagged <code>intent="chat"</code>. Detecting small talk and skipping retrieval entirely is a pure Jev contribution; nothing else in the pipeline can do it.</li>
+    </ol>
+
+    <figure>
+      <img src="charts/chart_accuracy.png" alt="Accuracy comparison across three configurations">
+      <figcaption>Full hybrid lifts routing accuracy 1.33× over OpenPoke's current behaviour. Hot cache alone is actually worse than baseline — recency without retrieval loses semantic matches entirely.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="charts/chart_visible.png" alt="Roster noise comparison">
+      <figcaption>Full hybrid cuts the number of agents in the IA prompt from 25 to 4.6 — a 5.4× reduction in input noise, while staying competitive on concision with the aggressive "hot cache only" option.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="charts/chart_scatter.png" alt="Accuracy vs. roster noise scatter plot">
+      <figcaption>Both axes together. Full hybrid lands in the top-right corner — more accurate and less noisy at the same time. Baseline wastes tokens being noisy; hot cache alone sacrifices accuracy to be concise.</figcaption>
+    </figure>
+
+
+    <h2>Two findings.</h2>
+
+    <h3>Hot cache alone is worse than baseline.</h3>
+    <p>The hot-cache-only config gets 53.8% accuracy — significantly below the no-filter baseline's 69.2%. Being concise but wrong is worse than being noisy but comprehensive. Hot cache misses anything older than a week, and misses semantic matches entirely. Recency without retrieval is actively lossy, not just incomplete. It's a useful data point against the simplest "just show the last five" instinct.</p>
+
+    <h3>The System 1 layer costs almost nothing.</h3>
+    <p>The Jev plus embedding stages combined add about $0.0001 and 300ms per user turn. In exchange, they cut the IA's input from 500 agents to 10, lift accuracy by 33% relative, and gate out "chat" turns that don't need any of this machinery at all. The LLM call is still the dominant cost at ~$0.01 and ~1.5s. The System 1 layer is about 1% of the LLM call cost, which is exactly the point.</p>
+
+
+    <h2>Honest tradeoffs.</h2>
+
+    <h3>What this doesn't solve</h3>
+    <ul>
+      <li><strong>Multi-turn ambiguity.</strong> My benchmark is single-turn. When the system correctly says "I'm not confident" on an ambiguous query, it needs a clarification turn to resolve. I didn't build or test that.</li>
+      <li><strong>Scaling behaviour.</strong> 25 agents is a small roster. The real question is how this performs at 500 or 5,000. I'd expect embedding to stay cheap and Jev's rerank to stay around 300ms (batch cost scales linearly but is still fast), but I haven't verified.</li>
+    </ul>
+
+    <h3>What I'd build with more time</h3>
+    <ul>
+      <li>Scale the benchmark across roster sizes 50, 100, 500, 1,000 and chart how each config degrades.</li>
+      <li>Multi-turn test cases that specifically exercise clarification flows.</li>
+      <li>LLM-judge scoring for ambiguous cases, so "the system correctly refused to guess" counts as a pass rather than a miss.</li>
+      <li>Wire the eval into CI so threshold tuning can't silently regress.</li>
+    </ul>
+
+
+  </div>
+</main>
+
+<footer class="site">
+  <span>Written for General Magic · October 2026</span>
+  <a href="mailto:nishantm31@outlook.com">nishantm31@outlook.com</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+[
+  {
+    "config": "baseline",
+    "accuracy": 0.6923076923076923,
+    "avg_visible": 25.076923076923077,
+    "avg_latency_ms": 0.06097115916558183
+  },
+  {
+    "config": "hot_cache_only",
+    "accuracy": 0.5384615384615384,
+    "avg_visible": 4.230769230769231,
+    "avg_latency_ms": 10430.98850338272
+  },
+  {
+    "config": "full_hybrid",
+    "accuracy": 0.9230769230769231,
+    "avg_visible": 4.615384615384615,
+    "avg_latency_ms": 8030.578426233171
+  }
+]
