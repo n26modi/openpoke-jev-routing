@@ -1,6 +1,6 @@
 # OpenPoke 🌴 — Jev-powered retrieval fork
 
-**This fork adds a System 1 / System 2 retrieval pipeline that fixes the Execution Agent Overload problem** the OpenPoke team flagged as their biggest unsolved gap. Full writeup lives in `blog/` — run `python blog/serve.py` and open http://localhost:8000.
+**This fork adds a System 1 / System 2 retrieval pipeline that fixes the Execution Agent Overload problem** the OpenPoke team flagged as their biggest unsolved gap. 
 
 Baseline OpenPoke renders every execution agent (hundreds of them, after a few weeks of use) into the Interaction Agent's prompt on every turn. This fork filters that roster down to ~10 via a four-stage pipeline (plus a fifth that fires only on new-agent spawns), using TypeSafe's [Jev](https://typesafe.ai) for the classification work and OpenAI embeddings for semantic recall. On a 13-case benchmark, routing accuracy goes from **69.2% → 92.3%** and the visible roster shrinks from **25 → 4.6** agents per turn.
 
