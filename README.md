@@ -1,4 +1,4 @@
-# OpenPoke 🌴 — Jev-powered retrieval fork
+# OpenPoke fork: Jev-powered retrieval 
 
 **This fork adds a System 1 / System 2 retrieval pipeline that fixes the Execution Agent Overload problem** the OpenPoke team flagged as their biggest unsolved gap. 
 
